@@ -1,57 +1,63 @@
 
-import { View, Text, ScrollView, Image, TouchableOpacity } from 'react-native';
-import { useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
 import { colors, commonStyles } from '../../styles/commonStyles';
-import { currentUser } from '../../data/mockData';
 import { User } from '../../types';
+import { useState } from 'react';
+import { View, Text, ScrollView, Image, TouchableOpacity, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { currentUser } from '../../data/mockData';
 
 export default function ProfileScreen() {
   const [user, setUser] = useState<User>(currentUser);
 
   const handleEditProfile = () => {
-    console.log('Editing profile...');
-    // TODO: Navigate to edit profile screen
+    console.log('Opening edit profile...');
+    Alert.alert('Edit Profile', 'Profile editing will be available soon!');
   };
 
   const handleSettings = () => {
     console.log('Opening settings...');
-    // TODO: Navigate to settings screen
+    Alert.alert('Settings', 'Settings will be available soon!');
   };
 
-  const StatCard = ({ label, value, icon }: { label: string; value: number; icon: string }) => (
-    <View style={[commonStyles.card, { flex: 1, marginHorizontal: 4, alignItems: 'center' }]}>
-      <Ionicons name={icon as any} size={24} color={colors.primary} />
-      <Text style={[commonStyles.title, { fontSize: 20, marginTop: 8, marginBottom: 4 }]}>
-        {value}
-      </Text>
-      <Text style={[commonStyles.textSecondary, { fontSize: 12 }]}>
-        {label}
-      </Text>
+  const StatCard = ({ label, value, icon, color = colors.primary }: { 
+    label: string; 
+    value: number; 
+    icon: string;
+    color?: string;
+  }) => (
+    <View style={[commonStyles.card, { flex: 1, alignItems: 'center', marginHorizontal: 4 }]}>
+      <View style={{
+        backgroundColor: color + '20',
+        borderRadius: 25,
+        padding: 12,
+        marginBottom: 8,
+      }}>
+        <Ionicons name={icon as any} size={24} color={color} />
+      </View>
+      <Text style={[commonStyles.title, { fontSize: 24, marginBottom: 4 }]}>{value}</Text>
+      <Text style={[commonStyles.textSecondary, { fontSize: 12, textAlign: 'center' }]}>{label}</Text>
     </View>
   );
 
+  const achievements = [
+    { title: 'Top Scorer', description: 'Most goals this season', icon: 'trophy', color: colors.warning },
+    { title: 'Team Player', description: 'Most assists', icon: 'people', color: colors.secondary },
+    { title: 'Regular', description: '20+ games played', icon: 'calendar', color: colors.primary },
+  ];
+
   return (
     <View style={commonStyles.container}>
-      {/* Header */}
-      <View style={{
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        backgroundColor: colors.card,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-      }}>
-        <View style={[commonStyles.row, commonStyles.spaceBetween]}>
+      <ScrollView style={commonStyles.content} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={[commonStyles.row, commonStyles.spaceBetween, { marginBottom: 20, marginTop: 16 }]}>
           <Text style={commonStyles.title}>Profile</Text>
           <TouchableOpacity onPress={handleSettings}>
             <Ionicons name="settings-outline" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
-      </View>
 
-      <ScrollView style={commonStyles.content} showsVerticalScrollIndicator={false}>
-        {/* Profile Header */}
-        <View style={[commonStyles.card, { alignItems: 'center', marginTop: 16 }]}>
+        {/* Profile Info */}
+        <View style={[commonStyles.card, { alignItems: 'center', marginBottom: 20 }]}>
           <Image
             source={{ uri: user.avatar }}
             style={{
@@ -61,102 +67,108 @@ export default function ProfileScreen() {
               marginBottom: 16,
             }}
           />
-          <Text style={[commonStyles.title, { fontSize: 24, marginBottom: 4 }]}>
-            {user.name}
-          </Text>
-          <Text style={[commonStyles.textSecondary, { fontSize: 16, marginBottom: 8 }]}>
-            {user.position}
-          </Text>
-          <View style={[commonStyles.row, { marginBottom: 16 }]}>
-            <Ionicons name="shield-outline" size={16} color={colors.textSecondary} />
-            <Text style={[commonStyles.textSecondary, { marginLeft: 4 }]}>
-              {user.club}
-            </Text>
+          <Text style={[commonStyles.title, { fontSize: 24, marginBottom: 4 }]}>{user.name}</Text>
+          <Text style={[commonStyles.textSecondary, { fontSize: 16, marginBottom: 8 }]}>{user.position}</Text>
+          <View style={[commonStyles.row, { alignItems: 'center', marginBottom: 16 }]}>
+            <Ionicons name="shield" size={16} color={colors.primary} />
+            <Text style={[commonStyles.text, { marginLeft: 4, color: colors.primary }]}>{user.club}</Text>
           </View>
           
-          <TouchableOpacity
+          <TouchableOpacity 
+            onPress={handleEditProfile}
             style={{
               backgroundColor: colors.primary,
               paddingHorizontal: 24,
               paddingVertical: 10,
               borderRadius: 20,
             }}
-            onPress={handleEditProfile}
           >
-            <Text style={{ color: 'white', fontWeight: '500' }}>
-              Edit Profile
-            </Text>
+            <Text style={{ color: colors.background, fontWeight: '600' }}>Edit Profile</Text>
           </TouchableOpacity>
         </View>
 
         {/* Stats */}
-        <Text style={[commonStyles.subtitle, { marginTop: 24, marginBottom: 12, paddingHorizontal: 4 }]}>
-          Season Stats
-        </Text>
-        <View style={[commonStyles.row, { marginBottom: 24 }]}>
-          <StatCard
-            label="Games"
-            value={user.stats.playedGames}
-            icon="football-outline"
+        <Text style={[commonStyles.subtitle, { marginBottom: 16 }]}>Season Stats</Text>
+        <View style={[commonStyles.row, { marginBottom: 20 }]}>
+          <StatCard 
+            label="Games Played" 
+            value={user.stats.playedGames} 
+            icon="football" 
+            color={colors.primary}
           />
-          <StatCard
-            label="Goals"
-            value={user.stats.goals}
-            icon="trophy-outline"
+          <StatCard 
+            label="Goals" 
+            value={user.stats.goals} 
+            icon="trophy" 
+            color={colors.warning}
           />
-          <StatCard
-            label="Assists"
-            value={user.stats.assists}
-            icon="hand-left-outline"
+          <StatCard 
+            label="Assists" 
+            value={user.stats.assists} 
+            icon="people" 
+            color={colors.secondary}
           />
         </View>
 
-        {/* Data Source Info */}
-        <View style={[commonStyles.card, { backgroundColor: colors.backgroundAlt }]}>
-          <View style={[commonStyles.row, { marginBottom: 8 }]}>
-            <Ionicons name="information-circle" size={20} color={colors.primary} />
-            <Text style={[commonStyles.text, { marginLeft: 8, fontWeight: '600' }]}>
-              Stats Integration
+        {/* Performance Overview */}
+        <View style={[commonStyles.card, { marginBottom: 20 }]}>
+          <Text style={[commonStyles.subtitle, { marginBottom: 16 }]}>Performance Overview</Text>
+          
+          <View style={[commonStyles.row, commonStyles.spaceBetween, { marginBottom: 12 }]}>
+            <Text style={commonStyles.text}>Goals per Game</Text>
+            <Text style={[commonStyles.text, { fontWeight: '600' }]}>
+              {(user.stats.goals / user.stats.playedGames).toFixed(2)}
             </Text>
           </View>
-          <Text style={[commonStyles.textSecondary, { marginBottom: 8 }]}>
-            In the full version, stats would be automatically scraped from:
-          </Text>
-          <Text style={[commonStyles.textSecondary, { marginLeft: 16 }]}>
-            • www.fupa.net
-          </Text>
-          <Text style={[commonStyles.textSecondary, { marginLeft: 16 }]}>
-            • www.fussball.de
+          
+          <View style={[commonStyles.row, commonStyles.spaceBetween, { marginBottom: 12 }]}>
+            <Text style={commonStyles.text}>Assists per Game</Text>
+            <Text style={[commonStyles.text, { fontWeight: '600' }]}>
+              {(user.stats.assists / user.stats.playedGames).toFixed(2)}
+            </Text>
+          </View>
+          
+          <View style={[commonStyles.row, commonStyles.spaceBetween]}>
+            <Text style={commonStyles.text}>Goal Contributions</Text>
+            <Text style={[commonStyles.text, { fontWeight: '600' }]}>
+              {user.stats.goals + user.stats.assists}
+            </Text>
+          </View>
+        </View>
+
+        {/* Achievements */}
+        <Text style={[commonStyles.subtitle, { marginBottom: 16 }]}>Achievements</Text>
+        {achievements.map((achievement, index) => (
+          <View key={index} style={[commonStyles.card, commonStyles.row, { marginBottom: 12 }]}>
+            <View style={{
+              backgroundColor: achievement.color + '20',
+              borderRadius: 20,
+              padding: 10,
+              marginRight: 16,
+            }}>
+              <Ionicons name={achievement.icon as any} size={20} color={achievement.color} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[commonStyles.text, { fontWeight: '600', marginBottom: 4 }]}>
+                {achievement.title}
+              </Text>
+              <Text style={commonStyles.textSecondary}>{achievement.description}</Text>
+            </View>
+          </View>
+        ))}
+
+        {/* Data Source Info */}
+        <View style={[commonStyles.card, { backgroundColor: colors.backgroundAlt, marginTop: 20 }]}>
+          <View style={[commonStyles.row, { marginBottom: 8 }]}>
+            <Ionicons name="information-circle" size={20} color={colors.primary} />
+            <Text style={[commonStyles.text, { marginLeft: 8, fontWeight: '600' }]}>Data Sources</Text>
+          </View>
+          <Text style={commonStyles.textSecondary}>
+            Stats are scraped from www.fupa.net and www.fussball.de to provide accurate player information.
           </Text>
         </View>
 
-        {/* Quick Actions */}
-        <View style={[commonStyles.card, { marginTop: 16 }]}>
-          <Text style={[commonStyles.subtitle, { marginBottom: 16 }]}>
-            Quick Actions
-          </Text>
-          
-          <TouchableOpacity style={[commonStyles.row, { paddingVertical: 12 }]}>
-            <Ionicons name="create-outline" size={20} color={colors.textSecondary} />
-            <Text style={[commonStyles.text, { marginLeft: 12 }]}>
-              Create Post
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={[commonStyles.row, { paddingVertical: 12 }]}>
-            <Ionicons name="calendar-outline" size={20} color={colors.textSecondary} />
-            <Text style={[commonStyles.text, { marginLeft: 12 }]}>
-              Create Event
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={[commonStyles.row, { paddingVertical: 12 }]}>
-            <Ionicons name="swap-horizontal-outline" size={20} color={colors.textSecondary} />
-            <Text style={[commonStyles.text, { marginLeft: 12 }]}>
-              Post Transfer
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <View style={{ height: 100 }} />
       </ScrollView>
     </View>
   );

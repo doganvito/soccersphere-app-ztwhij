@@ -1,20 +1,21 @@
 
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
-import { useState, useCallback } from 'react';
-import { Ionicons } from '@expo/vector-icons';
 import { colors, commonStyles } from '../../styles/commonStyles';
+import { useState, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import EventCard from '../../components/EventCard';
-import { mockEvents } from '../../data/mockData';
+import CreateEventModal from '../../components/CreateEventModal';
+import { mockEvents, currentUser } from '../../data/mockData';
+import { Ionicons } from '@expo/vector-icons';
 import { Event } from '../../types';
 
 export default function EventsScreen() {
   const [events, setEvents] = useState<Event[]>(mockEvents);
   const [refreshing, setRefreshing] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const onRefresh = useCallback(() => {
     console.log('Refreshing events...');
     setRefreshing(true);
-    // Simulate API call
     setTimeout(() => {
       setRefreshing(false);
     }, 1000);
@@ -22,90 +23,93 @@ export default function EventsScreen() {
 
   const handleJoinEvent = (eventId: string) => {
     console.log('Joining event:', eventId);
-    setEvents(prevEvents =>
-      prevEvents.map(event =>
-        event.id === eventId
-          ? {
-              ...event,
+    setEvents(prevEvents => 
+      prevEvents.map(event => 
+        event.id === eventId 
+          ? { 
+              ...event, 
               isJoined: !event.isJoined,
-              participants: event.isJoined ? event.participants - 1 : event.participants + 1,
+              participants: event.isJoined ? event.participants - 1 : event.participants + 1
             }
           : event
       )
     );
   };
 
-  const handleCreateEvent = () => {
-    console.log('Creating new event...');
-    // TODO: Navigate to create event screen
+  const handleCreateEvent = (eventData: any) => {
+    const newEvent: Event = {
+      id: Date.now().toString(),
+      userId: currentUser.id,
+      user: currentUser,
+      title: eventData.title,
+      club: eventData.club,
+      address: eventData.address,
+      game: eventData.game,
+      date: new Date(eventData.date || Date.now() + 24 * 60 * 60 * 1000),
+      participants: 1,
+      isJoined: true,
+    };
+    
+    console.log('Creating new event:', newEvent);
+    setEvents(prevEvents => [newEvent, ...prevEvents]);
   };
 
   const handleNearbyEvents = () => {
     console.log('Searching for nearby events...');
     // Note: react-native-maps is not supported in Natively
-    alert('Location-based search is not available in Natively web version. This feature would work in the native mobile app.');
+    alert('Location-based search is not available in the web version. This feature works on mobile devices.');
   };
 
   return (
     <View style={commonStyles.container}>
-      {/* Header */}
-      <View style={{
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        backgroundColor: colors.card,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-      }}>
-        <View style={[commonStyles.row, commonStyles.spaceBetween, { marginBottom: 12 }]}>
-          <Text style={commonStyles.title}>Events</Text>
-          <TouchableOpacity
+      <View style={[commonStyles.row, commonStyles.spaceBetween, { padding: 16, paddingBottom: 8 }]}>
+        <Text style={commonStyles.title}>Events</Text>
+        <View style={[commonStyles.row, { gap: 12 }]}>
+          <TouchableOpacity 
+            onPress={handleNearbyEvents}
             style={{
-              backgroundColor: colors.primary,
-              paddingHorizontal: 16,
-              paddingVertical: 8,
+              backgroundColor: colors.secondary,
               borderRadius: 20,
-              flexDirection: 'row',
-              alignItems: 'center',
-            }}
-            onPress={handleCreateEvent}
-          >
-            <Ionicons name="add" size={16} color="white" />
-            <Text style={{ marginLeft: 4, color: 'white', fontWeight: '500' }}>
-              Create
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Quick Actions */}
-        <View style={commonStyles.row}>
-          <TouchableOpacity
-            style={{
-              backgroundColor: colors.backgroundAlt,
               paddingHorizontal: 12,
               paddingVertical: 8,
-              borderRadius: 16,
-              flexDirection: 'row',
-              alignItems: 'center',
-              marginRight: 12,
             }}
-            onPress={handleNearbyEvents}
           >
-            <Ionicons name="location" size={14} color={colors.primary} />
-            <Text style={{ marginLeft: 4, color: colors.primary, fontSize: 12, fontWeight: '500' }}>
-              Nearby
-            </Text>
+            <Ionicons name="location" size={20} color={colors.background} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => setShowCreateModal(true)}
+            style={{
+              backgroundColor: colors.primary,
+              borderRadius: 20,
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+            }}
+          >
+            <View style={[commonStyles.row, { alignItems: 'center' }]}>
+              <Ionicons name="add" size={20} color={colors.background} />
+              <Text style={{ color: colors.background, marginLeft: 4, fontWeight: '600' }}>Event</Text>
+            </View>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Events List */}
       <ScrollView
         style={commonStyles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        showsVerticalScrollIndicator={false}
       >
+        <View style={[commonStyles.card, { backgroundColor: colors.backgroundAlt, marginBottom: 16 }]}>
+          <View style={[commonStyles.row, { marginBottom: 8 }]}>
+            <Ionicons name="calendar" size={20} color={colors.primary} />
+            <Text style={[commonStyles.text, { marginLeft: 8, fontWeight: '600' }]}>Upcoming Events</Text>
+          </View>
+          <Text style={commonStyles.textSecondary}>
+            Find and join football events in your area. Create your own events and invite players!
+          </Text>
+        </View>
+
         {events.map((event) => (
           <EventCard
             key={event.id}
@@ -113,21 +117,15 @@ export default function EventsScreen() {
             onJoin={handleJoinEvent}
           />
         ))}
-
-        {/* Location Note */}
-        <View style={[commonStyles.card, { backgroundColor: colors.backgroundAlt, marginTop: 16 }]}>
-          <View style={[commonStyles.row, { marginBottom: 8 }]}>
-            <Ionicons name="information-circle" size={20} color={colors.primary} />
-            <Text style={[commonStyles.text, { marginLeft: 8, fontWeight: '600' }]}>
-              Location Features
-            </Text>
-          </View>
-          <Text style={commonStyles.textSecondary}>
-            Maps and location-based features are not supported in Natively web version. 
-            In the native mobile app, you would be able to see events on a map and search for nearby games based on your location.
-          </Text>
-        </View>
+        
+        <View style={{ height: 100 }} />
       </ScrollView>
+
+      <CreateEventModal
+        visible={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreateEvent={handleCreateEvent}
+      />
     </View>
   );
 }
