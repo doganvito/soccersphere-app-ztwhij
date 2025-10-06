@@ -1,4 +1,3 @@
-
 import { colors, commonStyles } from '../../styles/commonStyles';
 import { View, Text, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { useState, useCallback } from 'react';
@@ -6,6 +5,7 @@ import { mockPosts, currentUser } from '../../data/mockData';
 import { Post } from '../../types';
 import PostCard from '../../components/PostCard';
 import CreatePostModal from '../../components/CreatePostModal';
+import NearbyGames from '../../components/NearbyGames';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function HomeScreen() {
@@ -24,11 +24,11 @@ export default function HomeScreen() {
 
   const handleLike = (postId: string) => {
     console.log('Liking post:', postId);
-    setPosts(prevPosts => 
-      prevPosts.map(post => 
-        post.id === postId 
-          ? { 
-              ...post, 
+    setPosts(prevPosts =>
+      prevPosts.map(post =>
+        post.id === postId
+          ? {
+              ...post,
               isLiked: !post.isLiked,
               likes: post.isLiked ? post.likes - 1 : post.likes + 1
             }
@@ -54,7 +54,7 @@ export default function HomeScreen() {
       comments: 0,
       isLiked: false,
     };
-    
+
     console.log('Creating new post:', newPost);
     setPosts(prevPosts => [newPost, ...prevPosts]);
   };
@@ -63,7 +63,7 @@ export default function HomeScreen() {
     <View style={commonStyles.container}>
       <View style={[commonStyles.row, commonStyles.spaceBetween, { padding: 16, paddingBottom: 8 }]}>
         <Text style={commonStyles.title}>Sports Feed</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => setShowCreateModal(true)}
           style={{
             backgroundColor: colors.primary,
@@ -86,6 +86,8 @@ export default function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
+        <NearbyGames />
+
         {posts.map((post) => (
           <PostCard
             key={post.id}
@@ -94,7 +96,7 @@ export default function HomeScreen() {
             onComment={handleComment}
           />
         ))}
-        
+
         <View style={{ height: 100 }} />
       </ScrollView>
 
