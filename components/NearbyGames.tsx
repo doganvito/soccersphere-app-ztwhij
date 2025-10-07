@@ -13,6 +13,7 @@ import {
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, commonStyles } from '../styles/commonStyles';
+import { API_BASE } from '../constants';
 
 // Types for the API response
 interface NearbyGame {
@@ -35,6 +36,8 @@ interface LocationCoords {
   longitude: number;
 }
 
+type Mode = 'standort' | 'link';
+
 // Geocoding using Nominatim API
 const geocodeAddress = async (address: string): Promise<LocationCoords | null> => {
   try {
@@ -42,7 +45,7 @@ const geocodeAddress = async (address: string): Promise<LocationCoords | null> =
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`
     );
     const data = await response.json();
-    
+
     if (data && data.length > 0) {
       return {
         latitude: parseFloat(data[0].lat),
@@ -56,13 +59,49 @@ const geocodeAddress = async (address: string): Promise<LocationCoords | null> =
   }
 };
 
+// Extract location keywords from fupa URLs for geocoding
+const extractLocationFromUrl = (url: string): string | null => {
+  try {
+    // Extract region/location from fupa URLs like https://www.fupa.net/region/rotenburg/...
+    const fupaMatch = url.match(/fupa\.net\/region\/([^\/]+)/);
+    if (fupaMatch) {
+      return fupaMatch[1];
+    }
+
+    // Add more patterns as needed for other URL types
+    return null;
+  } catch (error) {
+    console.error('Error extracting location from URL:', error);
+    return null;
+  }
+};
+
 const NearbyGames: React.FC = () => {
   const [games, setGames] = useState<NearbyGame[]>([]);
   const [loading, setLoading] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>('standort');
+
+  // Standortmodus state
   const [manualAddress, setManualAddress] = useState('');
   const [useManualAddress, setUseManualAddress] = useState(false);
+
+  // Linkmodus state
+  const [fussballdeUrl, setFussballdeUrl] = useState('');
+  const [fupaUrls, setFupaUrls] = useState('');
+  const [linkCenter, setLinkCenter] = useState('');
+
+  // Common state
   const [radiusKm, setRadiusKm] = useState(10);
+
+  // Update radius when mode changes to Linkmodus
+  useEffect(() => {
+    if (mode === 'link') {
+      setRadiusKm(25);
+    } else {
+      setRadiusKm(10);
+    }
+  }, [mode]);
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     return today.toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -73,7 +112,7 @@ const NearbyGames: React.FC = () => {
   const getCurrentLocation = async (): Promise<LocationCoords | null> => {
     try {
       setLocationError(null);
-      
+
       // Request permissions
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
@@ -97,17 +136,34 @@ const NearbyGames: React.FC = () => {
     }
   };
 
-  const fetchNearbyGames = useCallback(async (coords: LocationCoords) => {
+  const fetchNearbyGames = useCallback(async (params: {
+    coords?: LocationCoords;
+    fussballdeUrl?: string;
+    fupaUrls?: string;
+  }) => {
     try {
       setLoading(true);
-      const apiUrl = `https://same-b5pavypb5bj-latest.netlify.app/api/nearby-games?lat=${coords.latitude}&lon=${coords.longitude}&radiusKm=${radiusKm}&date=${selectedDate}&daysBack=3&daysForward=3`;
-      
+
+      let apiUrl = `${API_BASE}/api/nearby-games?radiusKm=${radiusKm}&date=${selectedDate}&daysBack=3&daysForward=3`;
+
+      if (params.coords) {
+        apiUrl += `&lat=${params.coords.latitude}&lon=${params.coords.longitude}`;
+      }
+
+      if (params.fussballdeUrl) {
+        apiUrl += `&fussballdeMatchkalender=${encodeURIComponent(params.fussballdeUrl)}`;
+      }
+
+      if (params.fupaUrls) {
+        apiUrl += `&fupaUrl=${encodeURIComponent(params.fupaUrls)}`;
+      }
+
       const response = await fetch(apiUrl);
-      
+
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
       }
-      
+
       const data: ApiResponse = await response.json();
       setGames(data.games || []);
     } catch (error) {
@@ -118,7 +174,7 @@ const NearbyGames: React.FC = () => {
     }
   }, [radiusKm, selectedDate]);
 
-  const handleSearch = useCallback(async () => {
+  const handleStandortSearch = useCallback(async () => {
     let coords: LocationCoords | null = null;
 
     if (useManualAddress && manualAddress.trim()) {
@@ -136,12 +192,63 @@ const NearbyGames: React.FC = () => {
       }
     }
 
-    await fetchNearbyGames(coords);
+    await fetchNearbyGames({ coords });
   }, [useManualAddress, manualAddress, fetchNearbyGames]);
+
+  const handleLinkSearch = useCallback(async () => {
+    const trimmedFussballdeUrl = fussballdeUrl.trim();
+    const trimmedFupaUrls = fupaUrls.trim();
+
+    if (!trimmedFussballdeUrl && !trimmedFupaUrls) {
+      Alert.alert('Error', 'Please provide at least one URL (fussball.de or fupa.net)');
+      return;
+    }
+
+    let coords: LocationCoords | null = null;
+
+    // Handle center location for Linkmodus
+    if (linkCenter.trim()) {
+      // User provided manual center
+      coords = await geocodeAddress(linkCenter.trim());
+      if (!coords) {
+        Alert.alert('Error', 'Could not find location for the provided center address');
+        return;
+      }
+    } else {
+      // Try to derive center from URLs
+      let locationKeyword: string | null = null;
+
+      if (trimmedFupaUrls) {
+        const firstFupaUrl = trimmedFupaUrls.split(',')[0].trim();
+        locationKeyword = extractLocationFromUrl(firstFupaUrl);
+      }
+
+      if (locationKeyword) {
+        coords = await geocodeAddress(locationKeyword);
+        if (!coords) {
+          console.warn('Could not geocode location from URL, proceeding without coordinates');
+        }
+      }
+    }
+
+    await fetchNearbyGames({
+      coords: coords || undefined,
+      fussballdeUrl: trimmedFussballdeUrl || undefined,
+      fupaUrls: trimmedFupaUrls || undefined,
+    });
+  }, [fussballdeUrl, fupaUrls, linkCenter, fetchNearbyGames]);
+
+  const handleSearch = useCallback(async () => {
+    if (mode === 'standort') {
+      await handleStandortSearch();
+    } else {
+      await handleLinkSearch();
+    }
+  }, [mode, handleStandortSearch, handleLinkSearch]);
 
   const openMaps = (game: NearbyGame) => {
     const mapsUrl = Platform.OS === 'ios' ? game.mapsUrlApple : game.mapsUrlGoogle;
-    
+
     if (mapsUrl) {
       Linking.openURL(mapsUrl).catch(err => {
         console.error('Failed to open maps:', err);
@@ -155,9 +262,9 @@ const NearbyGames: React.FC = () => {
   const formatDateTime = (dateTimeString: string) => {
     try {
       const date = new Date(dateTimeString);
-      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { 
-        hour: '2-digit', 
-        minute: '2-digit' 
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
       });
     } catch (error) {
       return dateTimeString;
@@ -188,13 +295,13 @@ const NearbyGames: React.FC = () => {
           </View>
         </TouchableOpacity>
       </View>
-      
+
       <View style={{ marginBottom: 4 }}>
         <Text style={[commonStyles.text, { fontSize: 14 }]}>
           <Ionicons name="location" size={14} color={colors.textSecondary} /> {item.venueName}
         </Text>
       </View>
-      
+
       <View style={[commonStyles.row, commonStyles.spaceBetween]}>
         <Text style={[commonStyles.textSecondary, { fontSize: 12 }]}>
           <Ionicons name="time" size={12} color={colors.textSecondary} /> {formatDateTime(item.startTime)}
@@ -211,10 +318,10 @@ const NearbyGames: React.FC = () => {
     handleSearch();
   }, [handleSearch]);
 
-  return (
-    <View style={{ marginVertical: 16 }}>
+  const renderStandortMode = () => (
+    <>
       <View style={[commonStyles.row, commonStyles.spaceBetween, { marginBottom: 12 }]}>
-        <Text style={[commonStyles.subtitle, { marginBottom: 0 }]}>Nearby Games</Text>
+        <Text style={[commonStyles.textSecondary, { fontSize: 12 }]}>Location Source</Text>
         <TouchableOpacity
           onPress={() => setUseManualAddress(!useManualAddress)}
           style={{
@@ -224,10 +331,10 @@ const NearbyGames: React.FC = () => {
             paddingVertical: 6,
           }}
         >
-          <Text style={{ 
-            color: useManualAddress ? colors.background : colors.text, 
-            fontSize: 12, 
-            fontWeight: '600' 
+          <Text style={{
+            color: useManualAddress ? colors.background : colors.text,
+            fontSize: 12,
+            fontWeight: '600'
           }}>
             {useManualAddress ? 'Use GPS' : 'Manual'}
           </Text>
@@ -244,12 +351,128 @@ const NearbyGames: React.FC = () => {
           placeholderTextColor={colors.textSecondary}
         />
       )}
+    </>
+  );
+
+  const renderLinkMode = () => (
+    <>
+      <View style={{ marginBottom: 12 }}>
+        <Text style={[commonStyles.textSecondary, { fontSize: 12, marginBottom: 4 }]}>
+          fussball.de Matchkalender URL (optional)
+        </Text>
+        <TextInput
+          style={[commonStyles.input, { marginVertical: 0 }]}
+          placeholder="https://www.fussball.de/matchkalender/..."
+          value={fussballdeUrl}
+          onChangeText={setFussballdeUrl}
+          placeholderTextColor={colors.textSecondary}
+          multiline
+        />
+      </View>
+
+      <View style={{ marginBottom: 12 }}>
+        <Text style={[commonStyles.textSecondary, { fontSize: 12, marginBottom: 4 }]}>
+          fupa.net URLs (optional, comma-separated)
+        </Text>
+        <TextInput
+          style={[commonStyles.input, { marginVertical: 0 }]}
+          placeholder="https://www.fupa.net/region/rotenburg/..., https://www.fupa.net/..."
+          value={fupaUrls}
+          onChangeText={setFupaUrls}
+          placeholderTextColor={colors.textSecondary}
+          multiline
+        />
+      </View>
+
+      <View style={{ marginBottom: 12 }}>
+        <Text style={[commonStyles.textSecondary, { fontSize: 12, marginBottom: 4 }]}>
+          Umkreis-Zentrum (optional)
+        </Text>
+        <TextInput
+          style={[commonStyles.input, { marginVertical: 0 }]}
+          placeholder="Address or city name (default: derived from URL)"
+          value={linkCenter}
+          onChangeText={setLinkCenter}
+          placeholderTextColor={colors.textSecondary}
+        />
+      </View>
+    </>
+  );
+
+  return (
+    <View style={{ marginVertical: 16 }}>
+      <View style={[commonStyles.row, commonStyles.spaceBetween, { marginBottom: 12 }]}>
+        <Text style={[commonStyles.subtitle, { marginBottom: 0 }]}>Nearby Games</Text>
+      </View>
+
+      {/* Mode Toggle */}
+      <View style={{ marginBottom: 16 }}>
+        <Text style={[commonStyles.textSecondary, { fontSize: 12, marginBottom: 8 }]}>Mode</Text>
+        <View style={[commonStyles.row, { gap: 12 }]}>
+          <TouchableOpacity
+            onPress={() => setMode('standort')}
+            style={{
+              flex: 1,
+              backgroundColor: mode === 'standort' ? colors.primary : colors.backgroundAlt,
+              borderRadius: 12,
+              paddingVertical: 12,
+              paddingHorizontal: 16,
+            }}
+          >
+            <View style={[commonStyles.row, commonStyles.center]}>
+              <Ionicons
+                name="location"
+                size={16}
+                color={mode === 'standort' ? colors.background : colors.text}
+              />
+              <Text style={{
+                color: mode === 'standort' ? colors.background : colors.text,
+                marginLeft: 6,
+                fontWeight: '600',
+                fontSize: 14,
+              }}>
+                Standortmodus
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setMode('link')}
+            style={{
+              flex: 1,
+              backgroundColor: mode === 'link' ? colors.primary : colors.backgroundAlt,
+              borderRadius: 12,
+              paddingVertical: 12,
+              paddingHorizontal: 16,
+            }}
+          >
+            <View style={[commonStyles.row, commonStyles.center]}>
+              <Ionicons
+                name="link"
+                size={16}
+                color={mode === 'link' ? colors.background : colors.text}
+              />
+              <Text style={{
+                color: mode === 'link' ? colors.background : colors.text,
+                marginLeft: 6,
+                fontWeight: '600',
+                fontSize: 14,
+              }}>
+                Linkmodus
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Conditional rendering based on mode */}
+      {mode === 'standort' ? renderStandortMode() : renderLinkMode()}
 
       {/* Radius and Date Controls */}
       <View style={[commonStyles.row, { marginBottom: 12, justifyContent: 'space-between' }]}>
         <View style={{ flex: 1, marginRight: 8 }}>
           <Text style={[commonStyles.textSecondary, { fontSize: 12, marginBottom: 4 }]}>
-            Radius (km)
+            Radius (km) {mode === 'link' ? '(default: 25)' : ''}
           </Text>
           <View style={[commonStyles.row, { flexWrap: 'wrap' }]}>
             {radiusOptions.map(option => (
@@ -276,7 +499,7 @@ const NearbyGames: React.FC = () => {
             ))}
           </View>
         </View>
-        
+
         <View style={{ flex: 1, marginLeft: 8 }}>
           <Text style={[commonStyles.textSecondary, { fontSize: 12, marginBottom: 4 }]}>
             Date (YYYY-MM-DD)
@@ -343,7 +566,7 @@ const NearbyGames: React.FC = () => {
         <View style={[commonStyles.center, { paddingVertical: 24 }]}>
           <Ionicons name="football" size={32} color={colors.textSecondary} />
           <Text style={[commonStyles.textSecondary, { marginTop: 8, textAlign: 'center' }]}>
-            No games found in this area.{'\n'}Try adjusting the radius or date.
+            No games found.{'\n'}Try adjusting the {mode === 'standort' ? 'radius or date' : 'parameters or providing different URLs'}.
           </Text>
         </View>
       )}
